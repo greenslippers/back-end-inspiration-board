@@ -1,5 +1,7 @@
-from flask import Blueprint, abort, make_response, request
+from flask import Blueprint, abort, make_response, request, Response
 from ..models.board import Board
+from ..models.card import Card
+from .route_utilities import validate_model, create_model, get_models_with_filters
 from ..db import db
 
 boards_bp = Blueprint("boards_bp", __name__, url_prefix="/boards")
@@ -8,47 +10,45 @@ boards_bp = Blueprint("boards_bp", __name__, url_prefix="/boards")
 def create_board():
     request_body = request.get_json()
 
-    try:
-        new_board = Board.from_dict(request_body)     
-    except KeyError as error:
-        response = {"details": "Invalid data"}
-        abort(make_response(response, 400))
-
-    db.session.add(new_board)
-    db.session.commit()
-
-    return {"board": new_board.to_dict()}, 201
+    return create_model(Board, request_body)
 
 @boards_bp.get("")
 def get_all_boards():
-    query = db.select(Board)
+    return get_models_with_filters(Board, request.args)
 
-    title_param = request.args.get("title")
-    if title_param:
-        query = query.where(Board.title.ilike(f"%{title_param}%"))
+@boards_bp.get("/<board_id>")
+def get_one_board(board_id):
+    board = validate_model(Board, board_id)
+
+    return board.to_dict()
+
+# not required but standard CRUD route 
+# can be used if we decide to add Delete board button
+@boards_bp.delete("/<board_id>")
+def delete_board(board_id):
+    board = validate_model(Board, board_id)
+
+    db.session.delete(board)
+    db.session.commit()
+
+    return "", 204
+
+# ! tests don't pass since Card doesn't have 'from_dict'
+# ! re-test when Natasha pushes Card model
+@boards_bp.post("/<board_id>/cards")
+def create_card_to_board(board_id):
+    board = validate_model(Board, board_id)
     
-    owner_param = request.args.get("owner")
-    if owner_param:
-        # In case there are boards with similar titles, we can also filter by owner
-        query = query.where(Board.owner.ilike(f"%{owner_param}%"))
+    request_body = request.get_json()
+    request_body["board_id"] = board.board_id
 
-    # Handle sorting
-    sort_param = request.args.get("sort")
-    if sort_param == "asc":
-        query = query.order_by(Board.title.asc())
-    elif sort_param == "desc":
-        query = query.order_by(Board.title.desc())
-    else:
-        query = query.order_by(Board.board_id)
-    
-    # Execute query
-    boards = db.session.scalars(query).all()  
+    return create_model(Card, request_body)
 
-    boards_response = []
-
-    for board in boards:
-        boards_response.append(board.to_dict())
-
-    return boards_response, 200
-    
-
+# ! tests don't pass - AttributeError: 
+# 'Card' object has no attribute 'to_dict'
+# Re-test when Natasha pushes Card model
+@boards_bp.get("/<board_id>/cards")
+def get_cards_by_board(board_id):
+    board = validate_model(Board, board_id)
+    response = [card.to_dict() for card in board.cards]
+    return response
