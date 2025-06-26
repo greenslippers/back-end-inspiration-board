@@ -5,6 +5,7 @@ from .db import db, migrate
 from .models import board, card
 from .routes.board_routes import boards_bp
 from .routes.card_routes import cards_bp
+from flask_migrate import upgrade  # ✅ add this
 
 # Import models, blueprints, and anything else needed to set up the app or database
 
@@ -21,6 +22,9 @@ def create_app(config=None):
     migrate.init_app(app, db)
     CORS(app)
 
+    # auto-run migration when app starts
+    with app.app_context():
+        upgrade()
 
     app.register_blueprint(boards_bp)
     app.register_blueprint(cards_bp)
