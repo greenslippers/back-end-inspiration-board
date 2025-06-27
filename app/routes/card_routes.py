@@ -39,3 +39,12 @@ def get_cards_by_board(board_id):
     board = validate_model(Board, board_id)
     response = [card.to_dict() for card in board.cards]
     return response
+
+@cards_bp.patch("/<card_id>/like")
+def like_card(card_id):
+    card = validate_model(Card, card_id)
+
+    card.likes_count += 1
+    db.session.commit()
+
+    return card.to_dict(), 200
